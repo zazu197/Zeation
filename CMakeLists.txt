@@ -30,11 +30,18 @@ target_compile_definitions(ZetianExternal PRIVATE
 
 target_compile_options(ZetianExternal PRIVATE /W4 /permissive-)
 
-target_link_libraries(ZetianExternal PRIVATE user32 gdi32)
+target_link_libraries(ZetianExternal PRIVATE user32 gdi32 gdiplus)
 
 add_custom_command(TARGET ZetianExternal POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
         ${CMAKE_CURRENT_SOURCE_DIR}/offsets.json
         $<TARGET_FILE_DIR:ZetianExternal>/offsets.json
     COMMENT "Copying offsets.json next to the executable"
+)
+
+add_custom_command(TARGET ZetianExternal POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+        ${CMAKE_CURRENT_SOURCE_DIR}/crosshairs
+        $<TARGET_FILE_DIR:ZetianExternal>/crosshairs
+    COMMENT "Copying crosshairs folder next to the executable"
 )

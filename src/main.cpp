@@ -53,7 +53,7 @@ std::string find_offsets_path(int argc, char** argv) {
     for (int i = 1; i < argc; ++i) {
         const std::string argument = argv[i];
         if (argument != "--debug" && argument != "--probe"
-            && argument != "--test-death") {
+            && argument != "--test-death" && argument != "--snapshot") {
             return argument;
         }
     }
@@ -76,6 +76,26 @@ std::string find_offsets_path(int argc, char** argv) {
     }
 
     return "offsets.json";
+}
+
+std::string find_crosshairs_dir() {
+    const std::string exe_dir = exe_directory();
+    const std::string cwd = std::filesystem::current_path().string();
+
+    const std::string candidates[] = {
+        "crosshairs",
+        (std::filesystem::path(exe_dir) / "crosshairs").string(),
+        (std::filesystem::path(exe_dir) / ".." / "crosshairs").string(),
+        (std::filesystem::path(cwd) / "crosshairs").string(),
+    };
+
+    for (const std::string& candidate : candidates) {
+        if (std::filesystem::is_directory(candidate)) {
+            return candidate;
+        }
+    }
+
+    return (std::filesystem::path(exe_dir) / "crosshairs").string();
 }
 
 std::string installed_roblox_version() {
@@ -216,6 +236,7 @@ int run(int argc, char** argv) {
     bool debug = false;
     bool probe = false;
     bool test_death = false;
+    bool snapshot = false;
     for (int i = 1; i < argc; ++i) {
         if (std::string(argv[i]) == "--debug") {
             debug = true;
@@ -227,6 +248,9 @@ int run(int argc, char** argv) {
         if (std::string(argv[i]) == "--test-death") {
             test_death = true;
         }
+        if (std::string(argv[i]) == "--snapshot") {
+            snapshot = true;
+        }
     }
 
     zext::CrosshairRenderer renderer;
@@ -235,9 +259,37 @@ int run(int argc, char** argv) {
                            "Another instance may already be running.");
     }
 
+    const std::string crosshairs_dir = find_crosshairs_dir();
+    if (renderer.load_custom_images(crosshairs_dir)) {
+        std::printf("[info] Loaded %zu custom crosshair image(s) from '%s'\n",
+                    renderer.custom_image_count(), crosshairs_dir.c_str());
+        std::printf("[info]   Deaths will switch between these images\n");
+    } else {
+        std::printf("[info] No custom images in '%s' - using built-in shapes\n",
+                    crosshairs_dir.c_str());
+        std::printf("[info]   Drop .png/.jpg/.bmp/.gif files there to use them instead\n");
+    }
+
     std::printf("[info] Overlay ready. Press Ctrl+C to quit.\n");
     const std::string initial_style = renderer.request_random_style();
     std::printf("[info] Initial crosshair: %s\n", initial_style.c_str());
+
+    if (snapshot) {
+        const std::string snapshot_path = "overlay_snapshot.png";
+        if (renderer.save_snapshot(snapshot_path)) {
+            std::printf("[info] Snapshot saved to '%s'\n", snapshot_path.c_str());
+        } else {
+            std::printf("[error] Failed to save snapshot\n");
+        }
+        std::printf("\nPress any key to exit...\n");
+        while (true) {
+            if (_kbhit() != 0) {
+                break;
+            }
+            Sleep(50);
+        }
+        return 0;
+    }
 
     std::thread render_thread([&renderer] { renderer.run(); });
 
